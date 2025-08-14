@@ -10,6 +10,7 @@ namespace JiraProject.Business.Abstract
         Task<UserDto> GetUserByIdAsync(int id);
         Task<UserDto> CreateUserAsync(UserCreateDto dto);
         Task<UserDto> UpdateUserAsync(int id, UserUpdateDto dto);
+        Task<UserDto> ChangeUserRoleAsync(UserRoleChangeDto userRoleChangeDto);
         Task DeleteUserAsync(int id);
 
         // Login metodu, başarılı olursa UserDto döner, şifre vs. içermez.

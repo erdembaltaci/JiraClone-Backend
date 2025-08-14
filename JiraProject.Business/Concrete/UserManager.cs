@@ -81,5 +81,20 @@ namespace JiraProject.Business.Concrete
             _userRepository.Remove(user);
             await _unitOfWork.CompleteAsync();
         }
+    
+public async Task<UserDto> ChangeUserRoleAsync(UserRoleChangeDto userRoleChangeDto)
+        {
+            var user = await _userRepository.GetByIdAsync(userRoleChangeDto.UserId);
+            if (user == null) throw new NotFoundException("Kullanıcı bulunamadı.");
+
+            if (!Enum.TryParse<UserRole>(userRoleChangeDto.NewRole, out var newRole))
+            {
+                throw new ArgumentException("Geçersiz rol adı.");
+            }
+            user.Role = newRole;
+            _userRepository.Update(user);
+            await _unitOfWork.CompleteAsync();
+            return _mapper.Map<UserDto>(user);
+        }
     }
 }

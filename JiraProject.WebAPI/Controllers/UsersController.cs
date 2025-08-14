@@ -76,5 +76,25 @@ namespace JiraProject.WebAPI.Controllers
             await _userService.DeleteUserAsync(id);
             return NoContent();
         }
+
+        [HttpPut("changerole")]
+        [Authorize(Roles = "TeamLead")]
+        public async Task<IActionResult> ChangeUserRole([FromBody] UserRoleChangeDto roleChangeDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _userService.ChangeUserRoleAsync(roleChangeDto);
+
+            // Remove IsSuccess check, just return Ok if result is not null, otherwise BadRequest
+            if (result != null)
+            {
+                return Ok(result);
+            }
+
+            return BadRequest("Role change failed.");
+        }
     }
 }

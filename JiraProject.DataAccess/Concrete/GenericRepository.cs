@@ -24,39 +24,34 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
 
     public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate)
     {
-        return await _dbSet.Where(predicate).ToListAsync();
+        return await _dbSet.Where(predicate).ToListAsync(); 
     }
 
     public async Task<IEnumerable<T>> GetAllAsync()
     {
-        // İÇİ DOLDURULDU
         return await _dbSet.ToListAsync();
     }
 
     public async Task<T?> GetByIdAsync(int id)
     {
-        // İÇİ DOLDURULDU
         // FindAsync, primary key'e göre arama yapmak için en verimli yoldur.
         return await _dbSet.FindAsync(id);
     }
 
     public void Remove(T entity)
     {
-        // İÇİ DOLDURULDU
         _dbSet.Remove(entity);
     }
 
     public void Update(T entity)
     {
-        // İÇİ DOLDURULDU
         _dbSet.Update(entity);
     }
 
-    // --- DAHA ÖNCE EKLEDİĞİMİZ AKILLI METOTLAR ---
 
-    public async Task<T?> GetByIdWithIncludesAsync(int id, params string[] includeStrings)
+    public async Task<T?> GetByIdWithIncludesAsync(int id, params string[] includeStrings) 
     {
-        IQueryable<T> query = _dbSet;
+        IQueryable<T> query = _dbSet; 
         foreach (var include in includeStrings)
         {
             query = query.Include(include);

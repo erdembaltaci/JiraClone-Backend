@@ -46,10 +46,10 @@ builder.Services.AddAuthentication(options =>
     {
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
         ValidateIssuer = true,
         ValidateAudience = true,
-        ValidateLifetime = true, 
+        ValidateLifetime = false,
         ValidateIssuerSigningKey = true
     };
 });
@@ -58,24 +58,18 @@ builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "JiraProject API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "TASKAPI", Version = "v1" });
 
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    c.IncludeXmlComments(xmlPath);
-
-    // 1. Güvenlik Şemasını Tanımla (Define Security Scheme) 🔑
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
+        Type = SecuritySchemeType.Http,
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "JWT Authorization başlığı Bearer şeması kullanılarak eklenmelidir. \r\n\r\n Aşağıdaki metin kutusuna 'Bearer' [boşluk] ve ardından token'ı girin.\r\n\r\nÖrnek: \"Bearer 12345abcdef\""
+        Description = "JWT Token formatı: Bearer {token}"
     });
 
-    // 2. Güvenlik Gereksinimini Ekle (Add Security Requirement)
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -87,7 +81,7 @@ builder.Services.AddSwaggerGen(c =>
                     Id = "Bearer"
                 }
             },
-            new string[] {}
+            Array.Empty<string>()
         }
     });
 });
