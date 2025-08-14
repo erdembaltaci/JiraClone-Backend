@@ -1,16 +1,14 @@
-﻿// Yer: JiraProject.WebAPI/Controllers/ProjectsController.cs
-using JiraProject.Business.Abstract;
+﻿using JiraProject.Business.Abstract;
 using JiraProject.Business.Dtos;
-using JiraProject.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace JiraProject.WebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ProjectsController : ControllerBase
     {
         private readonly IProjectService _projectService;
@@ -20,86 +18,57 @@ namespace JiraProject.WebAPI.Controllers
             _projectService = projectService;
         }
 
-        // GET: api/Projects
-        [HttpGet]
+        /// <summary>
+        /// Tüm projeleri listeler.
+        /// </summary>
+        [HttpGet("get-all")] // İSİMLENDİRİLDİ
         public async Task<IActionResult> GetAllProjects()
         {
-            var projects = await _projectService.GetAllProjectsAsync();
-            var projectsDto = projects.Select(p => new ProjectDto
-            {
-                Id = p.Id,
-                Name = p.Name,
-                Description = p.Description,
-                CreatedAt = p.CreatedAt
-            });
+            var projectsDto = await _projectService.GetAllProjectsAsync();
             return Ok(projectsDto);
         }
 
-        // GET: api/Projects/5
-        [HttpGet("{id}")]
+        /// <summary>
+        /// ID'si verilen tek bir projeyi getirir.
+        /// </summary>
+        [HttpGet("get-by-id/{id}")] // İSİMLENDİRİLDİ
         public async Task<IActionResult> GetProjectById(int id)
         {
-            var project = await _projectService.GetProjectByIdAsync(id);
-            if (project == null) return NotFound();
-
-            var projectDto = new ProjectDto
-            {
-                Id = project.Id,
-                Name = project.Name,
-                Description = project.Description,
-                CreatedAt = project.CreatedAt
-            };
+            var projectDto = await _projectService.GetProjectByIdAsync(id);
             return Ok(projectDto);
         }
 
-        // POST: api/Projects
-        [HttpPost]
-        public async Task<IActionResult> CreateProject([FromBody] ProjectCreateDto projectDto)
+        /// <summary>
+        /// Yeni bir proje oluşturur.
+        /// </summary>
+        [HttpPost("create")] // İSİMLENDİRİLDİ
+        public async Task<IActionResult> CreateProject([FromBody] ProjectCreateDto projectCreateDto)
         {
-            if (projectDto == null) return BadRequest();
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            var projectToCreate = new Project
-            {
-                Name = projectDto.Name,
-                Description = projectDto.Description
-            };
+            var createdProjectDto = await _projectService.CreateProjectAsync(projectCreateDto);
 
-            await _projectService.CreateProjectAsync(projectToCreate);
-
-            var resultDto = new ProjectDto { Id = projectToCreate.Id, Name = projectToCreate.Name, Description = projectToCreate.Description, CreatedAt = projectToCreate.CreatedAt };
-            return CreatedAtAction(nameof(GetProjectById), new { id = projectToCreate.Id }, resultDto);
+            return CreatedAtAction(nameof(GetProjectById), new { id = createdProjectDto.Id }, createdProjectDto);
         }
 
-        // PUT: api/Projects/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateProject(int id, [FromBody] ProjectUpdateDto projectDto)
+        /// <summary>
+        /// ID'si verilen bir projeyi günceller.
+        /// </summary>
+        [HttpPut("update/{id}")] // İSİMLENDİRİLDİ
+        public async Task<IActionResult> UpdateProject(int id, [FromBody] ProjectUpdateDto projectUpdateDto)
         {
-            var projectFromDb = await _projectService.GetProjectByIdAsync(id);
-            if (projectFromDb == null) return NotFound();
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            projectFromDb.Name = projectDto.Name;
-            projectFromDb.Description = projectDto.Description;
-
-            var projectToUpdate = new Project
-            {
-                Id = id,
-                Name = projectDto.Name,
-                Description = projectDto.Description,
-                UpdatedAt = DateTime.UtcNow,
-                CreatedAt = projectFromDb.CreatedAt // CreatedAt'ı koru
-            };
-
-            await _projectService.UpdateProjectAsync(projectToUpdate);
-            return NoContent();
+            var updatedProjectDto = await _projectService.UpdateProjectAsync(id, projectUpdateDto);
+            return Ok(updatedProjectDto);
         }
 
-        // DELETE: api/Projects/5
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// ID'si verilen bir projeyi siler.
+        /// </summary>
+        [HttpDelete("delete/{id}")] // İSİMLENDİRİLDİ
         public async Task<IActionResult> DeleteProject(int id)
         {
-            var project = await _projectService.GetProjectByIdAsync(id);
-            if (project == null) return NotFound();
-
             await _projectService.DeleteProjectAsync(id);
             return NoContent();
         }

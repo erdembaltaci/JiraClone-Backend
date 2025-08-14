@@ -1,10 +1,7 @@
-﻿// Yer: JiraProject.WebAPI/Controllers/UsersController.cs
-using JiraProject.Business.Abstract;
+﻿using JiraProject.Business.Abstract;
 using JiraProject.Business.Dtos;
-using JiraProject.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace JiraProject.WebAPI.Controllers
@@ -21,119 +18,61 @@ namespace JiraProject.WebAPI.Controllers
         }
 
         /// <summary>
-        /// Tüm kullanıcıları listeler.
+        /// Tüm kullanıcıları listeler. Sadece yetkili kullanıcılar erişebilir.
         /// </summary>
-        // GET: api/Users
-        [HttpGet]
+        [HttpGet("get-all")] // İSİMLENDİRİLDİ
+        [Authorize]
         public async Task<IActionResult> GetAllUsers()
         {
-            var users = await _userService.GetAllUsersAsync();
-
-            // Entity'leri ASLA doğrudan döndürme! DTO'ya çevirerek hassas bilgileri gizle.
-            var usersDto = users.Select(u => new UserDto
-            {
-                Id = u.Id,
-                Username = u.Username,
-                Email = u.Email,
-                CreatedAt = u.CreatedAt
-            });
-
+            var usersDto = await _userService.GetAllUsersAsync();
             return Ok(usersDto);
         }
 
         /// <summary>
         /// ID'si verilen tek bir kullanıcıyı getirir.
         /// </summary>
-        // GET: api/Users/5
-        [HttpGet("{id}")]
+        [HttpGet("get-by-id/{id}")] // İSİMLENDİRİLDİ
+        [Authorize]
         public async Task<IActionResult> GetUserById(int id)
         {
-            var user = await _userService.GetUserByIdAsync(id);
-            if (user == null)
-            {
-                return NotFound(); // Kullanıcı bulunamadıysa 404 hatası döndür.
-            }
-
-            // Entity'yi DTO'ya çeviriyoruz. Şifre bilgisi dışarı sızmıyor.
-            var userDto = new UserDto
-            {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                CreatedAt = user.CreatedAt
-            };
-
+            var userDto = await _userService.GetUserByIdAsync(id);
             return Ok(userDto);
         }
 
         /// <summary>
-        /// Yeni bir kullanıcı oluşturur.
+        /// Yeni bir kullanıcı oluşturur (Kayıt Olma). Herkes erişebilir.
         /// </summary>
-        // POST: api/Users
-        [HttpPost]
-        public async Task<IActionResult> CreateUser([FromBody] UserCreateDto userDto)
+        [HttpPost("register")] // Bu isimlendirme zaten doğru ve standart.
+        [AllowAnonymous]
+        public async Task<IActionResult> CreateUser([FromBody] UserCreateDto userCreateDto)
         {
-            if (userDto == null) return BadRequest();
-
-            // DTO'yu, veritabanına kaydedilecek gerçek User Entity'sine dönüştürüyoruz.
-            var userToCreate = new User
-            {
-                Username = userDto.Username,
-                Email = userDto.Email,
-                // GERÇEK BİR UYGULAMADA ŞİFRE BURADA GÜVENLİ BİR ŞEKİLDE HASH'LENMELİ!
-                // Şimdilik test amaçlı düz metin olarak kaydediyoruz.
-                PasswordHash = userDto.Password
-            };
-
-            await _userService.CreateUserAsync(userToCreate);
-
-            // Dönen sonucu, şifre gibi hassas bilgiler içermeyen UserDto'ya çeviriyoruz.
-            var resultDto = new UserDto
-            {
-                Id = userToCreate.Id,
-                Username = userToCreate.Username,
-                Email = userToCreate.Email,
-                CreatedAt = userToCreate.CreatedAt
-            };
-
-            return CreatedAtAction(nameof(GetUserById), new { id = userToCreate.Id }, resultDto);
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var createdUserDto = await _userService.CreateUserAsync(userCreateDto);
+            return CreatedAtAction(nameof(GetUserById), new { id = createdUserDto.Id }, createdUserDto);
         }
+
+        // NOT: Login endpoint'ini AuthController'a taşıdığımız için buradan silebiliriz.
+        // Eğer burada kalacaksa, isimlendirmesi zaten doğrudur.
 
         /// <summary>
         /// ID'si verilen bir kullanıcının bilgilerini günceller.
         /// </summary>
-        // PUT: api/Users/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(int id, [FromBody] UserUpdateDto userDto)
+        [HttpPut("update/{id}")] // İSİMLENDİRİLDİ
+        [Authorize]
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UserUpdateDto userUpdateDto)
         {
-            var userFromDb = await _userService.GetUserByIdAsync(id);
-            if (userFromDb == null)
-            {
-                return NotFound();
-            }
-
-            userFromDb.Username = userDto.Username;
-            userFromDb.Email = userDto.Email;
-            userFromDb.UpdatedAt = DateTime.UtcNow;
-
-            await _userService.UpdateUserAsync(userFromDb);
-
-            return NoContent(); // Başarılı, HTTP 204
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var updatedUserDto = await _userService.UpdateUserAsync(id, userUpdateDto);
+            return Ok(updatedUserDto);
         }
 
         /// <summary>
         /// ID'si verilen bir kullanıcıyı siler.
         /// </summary>
-        // DELETE: api/Users/5
-        [HttpDelete("{id}")]
+        [HttpDelete("delete/{id}")] // İSİMLENDİRİLDİ
+        [Authorize]
         public async Task<IActionResult> DeleteUser(int id)
         {
-            var user = await _userService.GetUserByIdAsync(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
-
             await _userService.DeleteUserAsync(id);
             return NoContent();
         }

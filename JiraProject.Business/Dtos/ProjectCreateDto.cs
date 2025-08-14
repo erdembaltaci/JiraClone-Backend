@@ -5,5 +5,6 @@ namespace JiraProject.Business.Dtos
     {
         public string Name { get; set; } = null!;
         public string? Description { get; set; }
+        public int TeamId { get; set; } // Bir proje yaratılırken hangi takıma ait olduğu bilinmelidir.
     }
 }

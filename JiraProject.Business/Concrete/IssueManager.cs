@@ -1,85 +1,133 @@
-﻿namespace JiraProject.Business.Concrete
-{
-    using JiraProject.Business.Abstract;
-    using JiraProject.Entities;
-    using System;
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
+﻿using AutoMapper;
+using JiraProject.Business.Abstract;
+using JiraProject.Business.Dtos;
+using JiraProject.Business.Exceptions;
+using JiraProject.Entities;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
-    // IssueManager, IIssueService sözleşmesine uymak zorundadır.
-    // Bu sınıf, Issue (Görev) ile ilgili tüm işlemleri yöneten "Issue Ustası"dır.
-    // Bu sınıf, IIssueService arayüzünü uygulayarak, görevlerle ilgili
-    // ekleme, güncelleme, silme ve listeleme gibi işlemleri gerçekleştirir.
+namespace JiraProject.Business.Concrete
+{
     public class IssueManager : IIssueService
     {
+        // Artık özel repository yerine Generic olanı kullanıyoruz.
+        private readonly IGenericRepository<Issue> _issueRepository;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IMapper _mapper;
 
-        // Bu işleme 'Dependency Injection' diyoruz.
-        public IssueManager(IUnitOfWork unitOfWork)
+        public IssueManager(IGenericRepository<Issue> issueRepository, IUnitOfWork unitOfWork, IMapper mapper)
         {
+            _issueRepository = issueRepository;
             _unitOfWork = unitOfWork;
+            _mapper = mapper;
         }
 
-        public async Task CreateIssueAsync(Issue issue)
+        public async Task<IssueDto> CreateIssueAsync(IssueCreateDto createDto, int reporterId)
         {
-            issue.CreatedAt = DateTime.UtcNow;
-            await _unitOfWork.Issues.AddAsync(issue);
+            var issueEntity = _mapper.Map<Issue>(createDto);
+            issueEntity.ReporterId = reporterId;
+            await _issueRepository.AddAsync(issueEntity);
+            await _unitOfWork.CompleteAsync();
+            return await GetIssueByIdAsync(issueEntity.Id);
+        }
+
+        public async Task<IssueDto> GetIssueByIdAsync(int issueId)
+        {
+            // Özel metot yerine, Generic metodu "include" string'leri ile çağırıyoruz.
+            var issue = await _issueRepository.GetByIdWithIncludesAsync(issueId, "Project.Team", "Assignee", "Reporter");
+            if (issue == null) throw new NotFoundException($"'{issueId}' ID'li görev bulunamadı.");
+            return _mapper.Map<IssueDto>(issue);
+        }
+
+        public async Task<IEnumerable<IssueDto>> GetIssuesByProjectIdAsync(int projectId)
+        {
+            // Bütün görevleri detaylarıyla çekip sonra filtreliyoruz.
+            // Daha büyük projelerde bu sorgu için de özel bir metot yazılabilirdi.
+            var allIssuesWithDetails = await _issueRepository.GetAllWithIncludesAsync("Project.Team", "Assignee", "Reporter");
+            var filteredIssues = allIssuesWithDetails.Where(i => i.ProjectId == projectId);
+            return _mapper.Map<IEnumerable<IssueDto>>(filteredIssues);
+        }
+
+        public async Task<IssueDto> UpdateIssueAsync(int issueId, IssueUpdateDto updateDto, int currentUserId)
+        {
+            var issueFromDb = await _issueRepository.GetByIdWithIncludesAsync(issueId, "Project.Team");
+            if (issueFromDb == null) throw new NotFoundException("Güncellenecek görev bulunamadı.");
+
+            var teamLeadId = issueFromDb.Project.Team.TeamLeadId;
+            if (issueFromDb.ReporterId != currentUserId && issueFromDb.AssigneeId != currentUserId && teamLeadId != currentUserId)
+            {
+                throw new ForbiddenException("Bu görevi sadece oluşturan kişi, atanan kişi veya takım lideri güncelleyebilir.");
+            }
+
+            _mapper.Map(updateDto, issueFromDb);
+            await _unitOfWork.CompleteAsync();
+            return await GetIssueByIdAsync(issueId);
+        }
+
+        public async Task MoveIssueAsync(int issueId, IssueMoveDto moveDto, int currentUserId)
+        {
+            var issueFromDb = await _issueRepository.GetByIdWithIncludesAsync(issueId, "Project.Team");
+            if (issueFromDb == null) throw new NotFoundException("Taşınacak görev bulunamadı.");
+
+            var teamLeadId = issueFromDb.Project.Team.TeamLeadId;
+            if (issueFromDb.AssigneeId != currentUserId && teamLeadId != currentUserId)
+            {
+                throw new ForbiddenException("Bu görevi sadece atanan kişi veya takım lideri taşıyabilir.");
+            }
+
+            issueFromDb.Status = moveDto.NewStatus;
+            issueFromDb.Order = moveDto.NewOrder;
             await _unitOfWork.CompleteAsync();
         }
 
-        public async Task<IEnumerable<Issue>> GetAllIssuesAsync()
+        public async Task DeleteIssueAsync(int issueId, int currentUserId)
         {
-            // Unit of Work üzerinden Issue Repository'sine ulaşıp tüm görevleri alıyoruz.
-            return await _unitOfWork.Issues.GetAllAsync();
-        }
+            var issueToDelete = await _issueRepository.GetByIdWithIncludesAsync(issueId, "Project.Team");
+            if (issueToDelete == null) throw new NotFoundException("Silinecek görev bulunamadı.");
 
-        public async Task<Issue> GetIssueByIdAsync(int id)
-        {
-            return await _unitOfWork.Issues.GetByIdAsync(id);
-        }
-
-        public async Task UpdateIssueAsync(Issue issue)
-        {
-            // 1. Önce veritabanındaki mevcut kaydı ID'sine göre bul.
-            //    Bu işlem, EF Core'un bu kaydı "takip etmeye" başlamasını sağlar.
-            var issueFromDb = await _unitOfWork.Issues.GetByIdAsync(issue.Id);
-
-            // 2. Eğer kayıt bulunduysa, özelliklerini gelen yeni verilerle güncelle.
-            if (issueFromDb != null)
+            if (issueToDelete.Project.Team.TeamLeadId != currentUserId)
             {
-                // Gelen yeni verileri, veritabanından çektiğimiz nesnenin üzerine yazıyoruz.
-                issueFromDb.Title = issue.Title;
-                issueFromDb.Description = issue.Description;
-                issueFromDb.Status = issue.Status;
-                issueFromDb.Order = issue.Order;
-                issueFromDb.UpdatedAt = DateTime.UtcNow; // Güncellenme tarihini ayarla
-
-                // 3. Değişiklikleri kaydet. EF Core, issueFromDb'nin
-                //    değiştiğini zaten bildiği için doğru UPDATE komutunu oluşturur.
-                //    Burada _unitOfWork.Issues.Update() dememize GEREK YOKTUR.
-                await _unitOfWork.CompleteAsync();
+                throw new ForbiddenException("Görevi sadece takım lideri silebilir.");
             }
-            // (Eğer issueFromDb null ise, bir 'bulunamadı' hatası fırlatılabilir.
-            //  Bu, ilerideki hata yönetimi konumuz.)
+
+            _issueRepository.Remove(issueToDelete);
+            await _unitOfWork.CompleteAsync();
         }
 
-        public async Task DeleteIssueAsync(int id)
+        public async Task<IEnumerable<IssueDto>> FilterIssuesAsync(IssueFilterDto filterDto)
         {
-            // Önce silinecek görevi Id'sine göre veritabanında buluyoruz.
-            var issueToDelete = await _unitOfWork.Issues.GetByIdAsync(id);
+            // 1. IQueryable'ı al. Bu, sorguyu veritabanına henüz GÖNDERMEZ, sadece hazırlar.
+            var query = (await _issueRepository.GetAllWithIncludesAsync("Project.Team", "Assignee", "Reporter")).AsQueryable();
 
-            // Eğer görev bulunursa...
-            if (issueToDelete != null)
+            // 2. Filtre DTO'sundan gelen her bir dolu alan için, sorguya bir "Where" koşulu ekle.
+            if (filterDto.ProjectId.HasValue)
             {
-                // Unit of Work üzerinden "Bu görevi sil" emrini veriyoruz.
-                _unitOfWork.Issues.Remove(issueToDelete);
-                await _unitOfWork.CompleteAsync(); // Değişikliği kaydet
+                query = query.Where(i => i.ProjectId == filterDto.ProjectId.Value);
             }
-        }
+            if (filterDto.Status.HasValue)
+            {
+                query = query.Where(i => i.Status == filterDto.Status.Value);
+            }
+            if (filterDto.AssigneeId.HasValue)
+            {
+                query = query.Where(i => i.AssigneeId == filterDto.AssigneeId.Value);
+            }
+            if (filterDto.ReporterId.HasValue)
+            {
+                query = query.Where(i => i.ReporterId == filterDto.ReporterId.Value);
+            }
+            if (filterDto.Date.HasValue)
+            {
+                // Sadece tarih kısmını karşılaştır, saat/dakika önemli değil.
+                var dateToFilter = filterDto.Date.Value.Date;
+                query = query.Where(i => i.CreatedAt.Date == dateToFilter);
+            }
 
-        public Task<IEnumerable<string>> GetToDoIssuesUpperCaseTitlesAsync()
-        {
-            throw new NotImplementedException();
+            // 3. Tüm "Where" koşulları eklendikten sonra, sorguyu veritabanında çalıştır ve sonuçları al.
+            var issues = query.ToList();
+
+            // 4. Sonuçları DTO'ya map'leyip döndür.
+            return _mapper.Map<IEnumerable<IssueDto>>(issues);
         }
     }
 }

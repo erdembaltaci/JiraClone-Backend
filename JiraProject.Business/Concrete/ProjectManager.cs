@@ -1,7 +1,8 @@
-﻿// Yer: JiraProject.Business/Concrete/ProjectManager.cs
+﻿using AutoMapper;
 using JiraProject.Business.Abstract;
+using JiraProject.Business.Dtos;
+using JiraProject.Business.Exceptions;
 using JiraProject.Entities;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -9,51 +10,90 @@ namespace JiraProject.Business.Concrete
 {
     public class ProjectManager : IProjectService
     {
+        private readonly IGenericRepository<Project> _projectRepository;
+        private readonly IGenericRepository<Team> _teamRepository;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IMapper _mapper;
 
-        public ProjectManager(IUnitOfWork unitOfWork)
+        public ProjectManager(IGenericRepository<Project> projectRepository, IGenericRepository<Team> teamRepository, IUnitOfWork unitOfWork, IMapper mapper)
         {
+            _projectRepository = projectRepository;
+            _teamRepository = teamRepository;
             _unitOfWork = unitOfWork;
+            _mapper = mapper;
         }
 
-        public async Task CreateProjectAsync(Project project)
+        public async Task<ProjectDto> CreateProjectAsync(ProjectCreateDto dto, int creatorUserId)
         {
-            project.CreatedAt = DateTime.UtcNow;
-            project.UpdatedAt = DateTime.UtcNow;
-            await _unitOfWork.Projects.AddAsync(project);
+            var team = await _teamRepository.GetByIdAsync(dto.TeamId);
+            if (team == null) throw new NotFoundException("Projenin ekleneceği takım bulunamadı.");
+            if (team.TeamLeadId != creatorUserId)
+            {
+                throw new ForbiddenException("Sadece takım lideri kendi takımına proje ekleyebilir.");
+            }
+
+            var projectEntity = _mapper.Map<Project>(dto);
+            await _projectRepository.AddAsync(projectEntity);
+            await _unitOfWork.CompleteAsync();
+
+            return await GetProjectByIdAsync(projectEntity.Id);
+        }
+
+        public async Task<ProjectDto> UpdateProjectAsync(int id, ProjectUpdateDto dto, int currentUserId)
+        {
+            var projectFromDb = await _projectRepository.GetByIdWithIncludesAsync(id, "Team");
+            if (projectFromDb == null) throw new NotFoundException("Güncellenecek proje bulunamadı.");
+
+            if (projectFromDb.Team.TeamLeadId != currentUserId)
+            {
+                throw new ForbiddenException("Projeyi sadece takım lideri güncelleyebilir.");
+            }
+
+            _mapper.Map(dto, projectFromDb);
+            await _unitOfWork.CompleteAsync();
+            return _mapper.Map<ProjectDto>(projectFromDb);
+        }
+
+        public async Task DeleteProjectAsync(int id, int currentUserId)
+        {
+            var project = await _projectRepository.GetByIdWithIncludesAsync(id, "Team");
+            if (project == null) throw new NotFoundException("Silinecek proje bulunamadı.");
+
+            if (project.Team.TeamLeadId != currentUserId)
+            {
+                throw new ForbiddenException("Projeyi sadece takım lideri silebilir.");
+            }
+
+            _projectRepository.Remove(project);
             await _unitOfWork.CompleteAsync();
         }
 
-        public async Task DeleteProjectAsync(int id)
+        public async Task<ProjectDto> GetProjectByIdAsync(int id)
         {
-            var project = await _unitOfWork.Projects.GetByIdAsync(id);
-            if (project != null)
-            {
-                _unitOfWork.Projects.Remove(project);
-                await _unitOfWork.CompleteAsync();
-            }
+            var project = await _projectRepository.GetByIdWithIncludesAsync(id, "Team");
+            if (project == null) throw new NotFoundException("Proje bulunamadı.");
+            return _mapper.Map<ProjectDto>(project);
         }
 
-        public async Task<IEnumerable<Project>> GetAllProjectsAsync()
+        public async Task<IEnumerable<ProjectDto>> GetAllProjectsAsync()
         {
-            return await _unitOfWork.Projects.GetAllAsync();
+            var projects = await _projectRepository.GetAllWithIncludesAsync("Team");
+            return _mapper.Map<IEnumerable<ProjectDto>>(projects);
         }
 
-        public async Task<Project> GetProjectByIdAsync(int id)
+        public Task<ProjectDto> CreateProjectAsync(ProjectCreateDto dto)
         {
-            return await _unitOfWork.Projects.GetByIdAsync(id);
+            throw new NotImplementedException();
         }
 
-        public async Task UpdateProjectAsync(Project project)
+        public Task<ProjectDto> UpdateProjectAsync(int id, ProjectUpdateDto dto)
         {
-            var projectFromDb = await _unitOfWork.Projects.GetByIdAsync(project.Id);
-            if (projectFromDb != null)
-            {
-                projectFromDb.Name = project.Name;
-                projectFromDb.Description = project.Description;
-                projectFromDb.UpdatedAt = DateTime.UtcNow;
-                await _unitOfWork.CompleteAsync();
-            }
+            throw new NotImplementedException();
+        }
+
+        public Task DeleteProjectAsync(int id)
+        {
+            throw new NotImplementedException();
         }
     }
 }

@@ -6,11 +6,10 @@ using System.Threading.Tasks;
 
 namespace JiraProject.Entities
 {
-    public enum TaskStatus
+    public enum UserRole
     {
-        ToDo,  // 0
-        InProgress, // 1
-        InReview, //2
-        Done // 3
+        Developer,      // Geliştirici
+        TeamLead,       // Takım Lideri
+        BusinessUser    // İş Birimi Kullanıcısı
     }
 }

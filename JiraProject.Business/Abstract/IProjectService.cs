@@ -1,16 +1,12 @@
-﻿// Yer: JiraProject.Business/Abstract/IProjectService.cs
-using JiraProject.Entities;
+﻿using JiraProject.Business.Dtos;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace JiraProject.Business.Abstract
+public interface IProjectService
 {
-    public interface IProjectService
-    {
-        Task<IEnumerable<Project>> GetAllProjectsAsync();
-        Task<Project> GetProjectByIdAsync(int id);
-        Task CreateProjectAsync(Project project);
-        Task UpdateProjectAsync(Project project);
-        Task DeleteProjectAsync(int id);
-    }
+    Task<IEnumerable<ProjectDto>> GetAllProjectsAsync();
+    Task<ProjectDto> GetProjectByIdAsync(int id);
+    Task<ProjectDto> CreateProjectAsync(ProjectCreateDto dto);
+    Task<ProjectDto> UpdateProjectAsync(int id, ProjectUpdateDto dto);
+    Task DeleteProjectAsync(int id);
 }

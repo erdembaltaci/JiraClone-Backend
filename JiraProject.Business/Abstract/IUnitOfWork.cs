@@ -1,33 +1,20 @@
-﻿using JiraProject.Entities;
-using System;
+﻿using System;
+using System.Threading.Tasks;
 
 namespace JiraProject.Business.Abstract
 {
-   
-    /// Tüm repository'leri bir arada tutan ve veritabanı işlemlerini
-    /// tek bir transaction (işlem bütünlüğü) içinde yöneten yapının sözleşmesi.
-    /// Lokanta analojisindeki "Mutfak Şefi"nin görev tanımıdır.
-   
+    /// <summary>
+    /// Veritabanı işlemlerini tek bir transaction (işlem bütünlüğü)
+    /// içinde yöneten yapının sözleşmesi.
+    /// Tek sorumluluğu, yapılan tüm değişiklikleri kaydetmek veya
+    /// iptal etmektir.
+    /// </summary>
     public interface IUnitOfWork : IDisposable
     {
-       
-        /// Issue (Görev) verileri üzerinde işlem yapacak olan repository'ye erişim sağlar.
-       
-        IGenericRepository<Issue> Issues { get; }
-
-       
-        /// Project (Proje) verileri üzerinde işlem yapacak olan repository'ye erişim sağlar.
-      
-        IGenericRepository<Project> Projects { get; }
-
-        /// User (Kullanıcı) verileri üzerinde işlem yapacak olan repository'ye erişim sağlar.
-
-        IGenericRepository<User> Users { get; }
-
-
+        /// <summary>
         /// O ana kadar yapılan tüm değişiklikleri (ekleme, güncelleme, silme)
         /// veritabanına tek bir işlem olarak kaydeder.
-
+        /// </summary>
         /// <returns>Veritabanında etkilenen satır sayısı.</returns>
         Task<int> CompleteAsync();
     }

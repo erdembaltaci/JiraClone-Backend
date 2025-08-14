@@ -6,5 +6,6 @@ namespace JiraProject.Business.Dtos
         public string Username { get; set; } = null!;
         public string Password { get; set; } = null!; // Şifreyi düz metin alacağız, sonra hash'leyeceğiz.
         public string Email { get; set; } = null!;
+        public Entities.UserRole Role { get; set; }
     }
 }

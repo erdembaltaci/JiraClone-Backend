@@ -1,24 +1,45 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace JiraProject.Entities
 {
+    // Önce yeni enum'ı tanımlayalım
+    public enum PriorityLevel
+    {
+        Lowest,
+        Low,
+        Medium,
+        High,
+        Highest
+    }
+
     public class Issue : BaseEntity
     {
+        [Required]
+        [MaxLength(200)]
         public string Title { get; set; } = null!;
+
+        [MaxLength(2000)]
         public string? Description { get; set; }
-        public int Order { get; set; }
 
-        // Artık StatusId'ye gerek yok, Status'ü doğrudan enum olarak tutacağız.
         public TaskStatus Status { get; set; }
+        public PriorityLevel Priority { get; set; }
 
-        // Foreign Key
+        public int Order { get; set; }
+        public DateTime? DueDate { get; set; }
+
+        // --- İLİŞKİLER ---
+
+        // Proje İlişkisi
         public int ProjectId { get; set; }
-
-        // Navigation Property
         public Project Project { get; set; } = null!;
+
+        // "Assignee" (Görevi Yapan) İlişkisi (Nullable)
+        public int? AssigneeId { get; set; }
+        public User? Assignee { get; set; }
+
+        // "Reporter" (Görevi Oluşturan) İlişkisi (Non-Nullable)
+        public int ReporterId { get; set; }
+        public User Reporter { get; set; } = null!;
     }
 }
